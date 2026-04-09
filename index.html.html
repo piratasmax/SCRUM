@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EduDB - Aprende Bases de Datos</title>
+
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    min-height: 100vh;
+}
+
+.screen { display: none; min-height: 100vh; justify-content: center; align-items: center; }
+.screen.active { display: flex; }
+
+.login-container {
+    background: white; padding: 2rem; border-radius: 15px;
+    width: 300px; text-align: center;
+}
+
+input { width: 100%; padding: 10px; margin: 10px 0; }
+button { padding: 10px; cursor: pointer; }
+
+.app-container { background: white; }
+
+.header {
+    background: #667eea; color: white;
+    padding: 1rem; display: flex;
+    justify-content: space-between;
+}
+
+.modules-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px,1fr));
+    gap: 1rem; padding: 2rem;
+}
+
+.module-card {
+    padding: 1.5rem; background: white;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    cursor: pointer;
+}
+
+.module-card.completed {
+    border: 2px solid green;
+}
+
+.content-container { padding: 2rem; }
+.back-btn { margin-bottom: 1rem; }
+
+.code {
+    background: #f4f4f4;
+    padding: 10px;
+    border-radius: 8px;
+    margin: 10px 0;
+    font-family: monospace;
+}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div class="screen active" id="loginScreen">
+    <div class="login-container">
+        <h2>EduDB</h2>
+        <input id="username" value="estudiante">
+        <input id="password" type="password" value="1234">
+        <button onclick="login()">Entrar</button>
+    </div>
+</div>
+
+<!-- APP -->
+<div class="screen app-container" id="appScreen">
+    <div class="header">
+        <span id="userInfo"></span>
+        <button onclick="logout()">Salir</button>
+    </div>
+
+    <div id="modulesScreen" class="modules-grid">
+        <div class="module-card" data-module="basics">📚 Bases de Datos</div>
+        <div class="module-card" data-module="models">🔗 Modelos</div>
+        <div class="module-card" data-module="sql">💾 SQL</div>
+        <div class="module-card" data-module="normalization">⚖️ Normalización</div>
+        <div class="module-card" data-module="joins">🔗 JOINs</div>
+    </div>
+
+    <div id="contentScreen" style="display:none;">
+        <div class="content-container">
+            <button class="back-btn" onclick="showModules()">← Volver</button>
+            <div id="moduleContent"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ESTADO
+let currentUser = '';
+let completedModules = JSON.parse(localStorage.getItem('completedModules') || '[]');
+
+// CONTENIDO COMPLETO
+const modulesData = {
+
+basics: {
+content: `
+<h2>📚 Bases de Datos</h2>
+<p>Una base de datos es un sistema para almacenar y organizar información.</p>
+
+<h3>🎯 ¿Para qué sirven?</h3>
+<ul>
+<li>Guardar usuarios</li>
+<li>Gestionar productos</li>
+<li>Registrar notas</li>
+</ul>
+
+<h3>⚙️ Características</h3>
+<ul>
+<li>Persistencia</li>
+<li>Seguridad</li>
+<li>Concurrencia</li>
+</ul>
+
+<p>💡 Ejemplo: una universidad guarda estudiantes, materias y notas.</p>
+`
+},
+
+models: {
+content: `
+<h2>🔗 Modelos de Datos</h2>
+
+<h3>Relacional</h3>
+<p>Usa tablas con filas y columnas.</p>
+
+<div class="code">
+id | nombre | edad<br>
+1  | Juan   | 20
+</div>
+
+<h3>NoSQL</h3>
+<p>Usa estructuras flexibles como JSON.</p>
+
+<div class="code">
+{ "nombre": "Juan", "edad": 20 }
+</div>
+
+<p>⚔️ Relacional = estructurado | NoSQL = flexible</p>
+`
+},
+
+sql: {
+content: `
+<h2>💾 SQL</h2>
+
+<h3>SELECT</h3>
+<div class="code">SELECT * FROM usuarios;</div>
+
+<h3>INSERT</h3>
+<div class="code">INSERT INTO usuarios VALUES ('Ana');</div>
+
+<h3>UPDATE</h3>
+<div class="code">UPDATE usuarios SET nombre='Luis' WHERE id=1;</div>
+
+<h3>DELETE</h3>
+<div class="code">DELETE FROM usuarios WHERE id=1;</div>
+
+<p>⚠️ Sin WHERE puedes borrar todo 😅</p>
+`
+},
+
+normalization: {
+content: `
+<h2>⚖️ Normalización</h2>
+
+<p>Proceso para organizar datos y evitar duplicados.</p>
+
+<h3>1NF</h3>
+<p>Datos sin repetir</p>
+
+<h3>2NF</h3>
+<p>Eliminar dependencias parciales</p>
+
+<h3>3NF</h3>
+<p>Eliminar dependencias innecesarias</p>
+
+<p>🎯 Beneficio: bases de datos más limpias y eficientes</p>
+`
+},
+
+joins: {
+content: `
+<h2>🔗 JOINs</h2>
+
+<p>Permiten unir tablas.</p>
+
+<h3>INNER JOIN</h3>
+<div class="code">
+SELECT * FROM estudiantes
+INNER JOIN notas
+ON estudiantes.id = notas.id_estudiante;
+</div>
+
+<h3>LEFT JOIN</h3>
+<p>Muestra todos los datos de la izquierda</p>
+
+<p>💡 Ejemplo: ver estudiantes con sus notas</p>
+`
+}
+
+};
+
+// LOGIN
+function login() {
+    const user = username.value;
+    const pass = password.value;
+
+    if (user === 'estudiante' && pass === '1234') {
+        currentUser = user;
+
+        loginScreen.classList.remove('active');
+        appScreen.classList.add('active');
+
+        userInfo.textContent = "👤 " + user;
+        updateProgress();
+    } else {
+        alert("❌ Datos incorrectos");
+    }
+}
+
+// LOGOUT
+function logout() {
+    appScreen.classList.remove('active');
+    loginScreen.classList.add('active');
+}
+
+// MOSTRAR
+function showModules() {
+    contentScreen.style.display = 'none';
+    modulesScreen.style.display = 'grid';
+}
+
+// ABRIR
+document.querySelectorAll('.module-card').forEach(card => {
+    card.addEventListener('click', () => {
+        openModule(card.dataset.module);
+    });
+});
+
+function openModule(key) {
+    modulesScreen.style.display = 'none';
+    contentScreen.style.display = 'block';
+
+    moduleContent.innerHTML = `
+        ${modulesData[key].content}
+        <button onclick="completeModule('${key}')">✅ Completar</button>
+    `;
+}
+
+// COMPLETAR
+function completeModule(key) {
+    if (!completedModules.includes(key)) {
+        completedModules.push(key);
+        localStorage.setItem('completedModules', JSON.stringify(completedModules));
+    }
+    updateProgress();
+    showModules();
+}
+
+// PROGRESO
+function updateProgress() {
+    document.querySelectorAll('.module-card').forEach(card => {
+        if (completedModules.includes(card.dataset.module)) {
+            card.classList.add('completed');
+        }
+    });
+}
+</script>
+
+</body>
+</html>
