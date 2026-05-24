@@ -1,0 +1,98 @@
+trigger:
+  - main
+  - develop
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+  - stage: Backend
+    displayName: Backend
+    jobs:
+      - job: BuildAndTest
+        displayName: Build and Test
+        steps:
+          - checkout: self
+
+          - task: Cache@2
+            displayName: Cache Maven local repo
+            inputs:
+              key: maven | $(Agent.OS) | backend/pom.xml
+              path: ~/.m2/repository
+              cacheHitVar: MAVEN_CACHE_RESTORED
+
+          - script: |
+              echo "Downloading JDK 24 from Adoptium..."
+              curl -fsSL -o jdk.tar.gz \
+                "https://api.adoptium.net/v3/binary/latest/24/ga/linux/x64/jdk/hotspot/normal/eclipse"
+              tar -xzf jdk.tar.gz
+              JDK_DIR=$(tar -tzf jdk.tar.gz | head -1 | cut -d/ -f1)
+              echo "JDK extracted to: $JDK_DIR"
+              echo "##vso[task.setvariable variable=JAVA_HOME]$(pwd)/$JDK_DIR"
+              echo "##vso[task.prependpath]$(pwd)/$JDK_DIR/bin"
+            displayName: Install JDK 24
+
+          - script: |
+              java -version
+              mvn -version
+              cd backend
+              mvn test --batch-mode
+            displayName: Run unit tests
+            env:
+              JAVA_TOOL_OPTIONS: '-Djdk.attach.allowAttachSelf=true -Xms64m -Xmx512m -XX:+UseSerialGC'
+
+          - task: PublishTestResults@2
+            displayName: Publish test results
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: 'backend/target/surefire-reports/TEST-*.xml'
+              searchFolder: $(System.DefaultWorkingDirectory)
+            condition: succeededOrFailed()
+
+          - task: PublishBuildArtifacts@1
+            displayName: Publish JAR
+            inputs:
+              pathToPublish: backend/target/*.jar
+              artifactName: backend-jar
+            condition: succeededOrFailed()
+
+  - stage: Frontend
+    displayName: Frontend
+    dependsOn: []
+    jobs:
+      - job: LintAndBuild
+        displayName: Lint and Build
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            displayName: Install Node.js 20
+            inputs:
+              versionSpec: '20.x'
+
+          - task: Cache@2
+            displayName: Cache npm dependencies
+            inputs:
+              key: npm | $(Agent.OS) | frontend/package-lock.json
+              path: frontend/node_modules
+              cacheHitVar: CACHE_RESTORED
+
+          - script: npm ci
+            displayName: Install dependencies
+            workingDirectory: frontend
+            condition: ne(variables.CACHE_RESTORED, 'true')
+
+          - script: npm run lint
+            displayName: Run linter
+            workingDirectory: frontend
+
+          - script: npm run build
+            displayName: Build
+            workingDirectory: frontend
+
+          - task: PublishBuildArtifacts@1
+            displayName: Publish build
+            inputs:
+              pathToPublish: frontend/dist
+              artifactName: frontend-build
+            condition: succeededOrFailed()
